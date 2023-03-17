@@ -1,0 +1,4 @@
+bin/
+obj/
+docker/
+!docker/docker-compose.yml

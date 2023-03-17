@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="DnsServerCore">
+      <HintPath>DnsServerCore.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DnsServerCore.ApplicationCommon">
+      <HintPath>DnsServerCore.ApplicationCommon.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="TechnitiumLibrary.Net">
+      <HintPath>TechnitiumLibrary.Net.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="dnsApp.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
