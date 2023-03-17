@@ -1,30 +1,103 @@
 using DnsServerCore.ApplicationCommon;
-using DnsServerCore.Dns.Applications;
-using DnsServerCore.Dns;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
 using System.Net;
+using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using TechnitiumLibrary.Net.Dns;
 using TechnitiumLibrary.Net.Dns.ResourceRecords;
 
-namespace QueryLogsSqlite
+namespace QueryLogsDb
 {
-
     public class App : IDnsApplication, IDnsQueryLogger
     {
         IDnsServer _dnsServer;
         string _vmUrl;
+        Timer? _queueTimer;
+        readonly ConcurrentQueue<LogEntry> _queuedLogs = new ConcurrentQueue<LogEntry>();
+        private static HttpClient _client;
+
+        const int QUEUE_TIMER_INTERVAL = 100;
+        const int BULK_INSERT_COUNT = 1000;
+
+        private Lazy<string> CSV_SCHEMA = new Lazy<string>(() =>
+        {
+            var data = new[]{
+                ("time", "unix_ms"),
+                ("label", "client_ip"),
+                ("label", "answer"),
+                ("label", "request_domain"),
+                ("metric", "request_type"),
+                ("metric", "protocol"),
+                ("metric", "response_type"),
+                ("metric", "rcode"),
+                ("metric", "class")
+            };
+
+            var str = "";
+            var i = 1;
+            foreach (var item in data)
+            {
+                str += $"{i}:{item.Item1}:{item.Item2},";
+                i++;
+            }
+            str = str.TrimEnd(',');
+
+            return str;
+        });
+        string ENDPOINT_IMPORT_CSV
+        {
+            get
+            {
+                return _vmUrl
+                    + "/api/v1/import/csv?format="
+                    + CSV_SCHEMA.Value
+                    + "&extra_label=job=technitium&extra_label=instance=technitium";
+            }
+        }
 
         public string Description
         {
             get
             {
                 return "Logs DNS request to db.";
+            }
+        }
+
+        private void BulkInsertLogs()
+        {
+            try
+            {
+                List<LogEntry> logs = new List<LogEntry>(BULK_INSERT_COUNT);
+
+                while (true)
+                {
+                    while ((logs.Count < BULK_INSERT_COUNT) && _queuedLogs.TryDequeue(out LogEntry? log))
+                    {
+                        logs.Add(log);
+                    }
+
+                    if (logs.Count < 1)
+                        break;
+
+                    string csv = "";
+                    foreach (LogEntry log in logs)
+                    {
+                        csv += log.ToCsv();
+                    }
+
+                    Console.WriteLine(csv);
+                    Console.WriteLine(ENDPOINT_IMPORT_CSV);
+                    var content = new StringContent(csv, Encoding.UTF8, "text/csv");
+                    var response = _client.PostAsync(ENDPOINT_IMPORT_CSV, content).Result;
+                    Console.WriteLine(response.StatusCode);
+
+                    logs.Clear();
+                }
+            }
+            catch (Exception ex)
+            {
+                if (_dnsServer is not null)
+                    _dnsServer.WriteLog(ex);
             }
         }
 
@@ -36,22 +109,45 @@ namespace QueryLogsSqlite
             using JsonDocument jsonDocument = JsonDocument.Parse(configStr);
             JsonElement config = jsonDocument.RootElement;
 
-            string connectionString = config.GetProperty("vmUrl").GetString() ?? throw new Exception();
+            _vmUrl = config.GetProperty("vmUrl").GetString() ?? throw new Exception();
 
-            Console.WriteLine("InitializeAsync");
+            _client = new HttpClient();
+
+            _queueTimer = new Timer((object? state) =>
+            {
+                try
+                {
+                    BulkInsertLogs();
+                }
+                catch (Exception ex)
+                {
+                    _dnsServer.WriteLog(ex);
+                }
+                finally
+                {
+                    if (_queueTimer is not null)
+                        _queueTimer.Change(QUEUE_TIMER_INTERVAL, Timeout.Infinite);
+                }
+            });
+
+            _queueTimer.Change(QUEUE_TIMER_INTERVAL, Timeout.Infinite);
 
             return Task.CompletedTask;
         }
 
         public void Dispose()
         {
-            Console.WriteLine("Dispose");
+            if (_queueTimer is not null)
+            {
+                _queueTimer.Dispose();
+                _queueTimer = null;
+            }
             return;
         }
 
         public Task InsertLogAsync(DateTime timestamp, DnsDatagram request, IPEndPoint remoteEP, DnsTransportProtocol protocol, DnsDatagram response)
         {
-            Console.WriteLine("InsertLogAsync");
+            _queuedLogs.Enqueue(new LogEntry(timestamp, request, remoteEP, protocol, response));
             return Task.CompletedTask;
         }
 
@@ -73,5 +169,6 @@ namespace QueryLogsSqlite
             Console.WriteLine("QueryLogsAsync");
             throw new NotImplementedException();
         }
+
     }
 }

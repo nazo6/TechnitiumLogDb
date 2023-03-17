@@ -1,4 +1,4 @@
-version: "3.5"
+version: "3"
 services:
   victoriametrics:
     container_name: victoriametrics
@@ -6,7 +6,7 @@ services:
     ports:
       - 8428:8428
     volumes:
-      - ./victoriametrics:/storage
+      - ./victoriametrics:/victoria-metrics-data
     restart: "no"
   grafana:
     container_name: grafana
