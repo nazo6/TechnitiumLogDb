@@ -4,16 +4,15 @@ default:
 build:
   dotnet build
 
-start:
+copy:
+  cp -r ./bin/Debug/net7.0/* ./docker/dns/
+
+start: build copy
   cd docker && docker-compose up -d
 
 stop:
   cd docker && docker-compose down
 
-copy:
-  cp -r ./bin/Debug/net7.0/* ./docker/dns/
 
-restart:
+update: build copy
   cd docker && docker-compose restart dns
-
-update: build restart

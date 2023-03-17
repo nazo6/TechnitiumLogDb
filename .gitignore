@@ -1,4 +1,4 @@
 bin/
 obj/
-docker/
+docker/*
 !docker/docker-compose.yml
