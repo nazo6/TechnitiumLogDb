@@ -1,5 +1,6 @@
 using DnsServerCore.ApplicationCommon;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -16,7 +17,7 @@ namespace QueryLogsDb
         readonly ConcurrentQueue<LogEntry> _queuedLogs = new ConcurrentQueue<LogEntry>();
         private static HttpClient _client;
 
-        const int QUEUE_TIMER_INTERVAL = 100;
+        const int QUEUE_TIMER_INTERVAL = 10000;
         const int BULK_INSERT_COUNT = 1000;
 
         private Lazy<string> CSV_SCHEMA = new Lazy<string>(() =>
@@ -83,13 +84,15 @@ namespace QueryLogsDb
                     foreach (LogEntry log in logs)
                     {
                         csv += log.ToCsv();
+                        csv += "\n";
                     }
+                    csv.TrimEnd('\n');
 
+#if DEBUG
                     Console.WriteLine(csv);
-                    Console.WriteLine(ENDPOINT_IMPORT_CSV);
+#endif
                     var content = new StringContent(csv, Encoding.UTF8, "text/csv");
                     var response = _client.PostAsync(ENDPOINT_IMPORT_CSV, content).Result;
-                    Console.WriteLine(response.StatusCode);
 
                     logs.Clear();
                 }
