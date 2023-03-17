@@ -1,4 +1,4 @@
-﻿using DnsServerCore.ApplicationCommon;
+using DnsServerCore.ApplicationCommon;
 using DnsServerCore.Dns.Applications;
 using DnsServerCore.Dns;
 using System;
