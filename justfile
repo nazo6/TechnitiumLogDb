@@ -3,16 +3,10 @@ default:
 
 build:
   dotnet build
+  zip -rj output.zip ./bin/Debug/net7.0
 
-copy:
-  cp -r ./bin/Debug/net7.0/* ./docker/dns/
-
-start: build copy
+start:
   cd docker && docker-compose up -d
 
 stop:
   cd docker && docker-compose down
-
-
-update: build copy
-  cd docker && docker-compose restart dns
